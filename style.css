@@ -1,0 +1,18 @@
+.scanit {
+	float: left;
+}
+
+.scan-result {
+	clear: both;
+	margin-top: 4em;
+}
+
+.scan-result .alert {
+	display: inline-block;
+}
+
+.asgard-scan-progress {
+	display: none;
+	padding-top: 11px;
+	margin-left: 5px;
+}
