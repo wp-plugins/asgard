@@ -1,11 +1,11 @@
 <?php
 /*
-Plugin Name: Asgard
-Plugin URI: http://rollbackup.com
-Description: One click security scan. Fast search the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and links.
+Plugin Name: Asgard Security - One click security audit
+Plugin URI: https://wordpress.org/plugins/asgard/
+Description: One click enterprise security scan. Fast audit the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and links.
 Author: Yuri Korzhenevsky
+Author URI: https://github.com/outself
 Version: 0.1
-Author URI: http://rollbackup.com
 */
 
 /*
