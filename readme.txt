@@ -1,6 +1,6 @@
 === Plugin Name ===
 Contributors: outself
-Tags: security, scanner, exploit, trojan, security audit, asgard, virus, malware, file integrity
+Tags: antivirus, security, scanner, exploit, trojan, security audit, asgard, virus, malware, file integrity, security scan, cure, disaster recovery, phishing, safe browsing, vulnerability, malware removal, website security, hack, hacker, backdoor, protection, secrity, secure, securty
 Requires at least: 3.2
 Tested up to: 4.0
 Stable tag: 4.3
