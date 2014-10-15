@@ -7,7 +7,7 @@ Stable tag: 4.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-One click security scan. 
+One click enterprise security scan. Fast audit the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and links.
 
 == Description ==
 
