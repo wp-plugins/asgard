@@ -58,7 +58,10 @@ function asgard_remove_malware_callback() {
 		if ( !file_exists( $path ) ) {
 			continue;
 		}
-		if ( unlink( $path ) ) {
+		
+		// append random number prefix
+		$backup_path = dirname($path) . DIRECTORY_SEPARATOR . mt_rand(0, 10000000) . basename($path);
+		if ( rename( $path, $backup_path ) ) {
 			echo '<p class="text-success">' . $path . ' removed</p>';
 		}
 		else {
@@ -226,7 +229,7 @@ jQuery(document).ready(function($) {
         });
 
         $('.remove-malware').live('click', function(){
-		if (!confirm('DANGER! This action completely remove files WITHOUT backup. Use at own RISK.')) return;
+		if (!confirm('DANGER! This action completely remove files and backup it with random prefix. Use at own RISK.')) return;
                 var files = $('.mw-file').map(function(){ return $(this).data('path'); }).get();
                 $.post(ajaxurl, {action: 'asgard_remove_malware', files: files, security: '<?php
 	echo $ajax_nonce; ?>'}, function(response) {
