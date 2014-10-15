@@ -140,8 +140,8 @@ function asgard_scan_files_callback() {
 	if ( count( $toscan ) > 0 ) {
 		$zip = asgard_zip_files( $toscan, $basepath );
 		$scanres = asgard_scan_zip( $zip );
-		if ( $scanres && $scanres->match ) {
-			foreach ( $scanres->verdict as $path => $verdict ) {
+		if ( $scanres && $scanres['match'] ) {
+			foreach ( $scanres['verdict'] as $path => $verdict ) {
 				$result[$basepath . $path] = $verdict;
 			}
 		}
@@ -243,8 +243,9 @@ jQuery(document).ready(function($) {
 function asgard_filter_target_file( $filepath ) {
 	$extensions = array(
 		'php',
-		'phtml',
 		'php5',
+		'php4',
+		'phtml',
 		'html',
 		'htaccess',
 		'tpl',
@@ -264,24 +265,32 @@ function asgard_content_hash( $filepath ) {
 		) );
 }
 
-
-function asgard_scan_zip( $path ) {
-	$body = array(
-		'file' => '@' . $path
-	);
+function asgard_api_post( $url, $body, $json=false ) {
 	$ch = curl_init();
-	curl_setopt( $ch, CURLOPT_URL, ASGARD_API . '/scan_zip' );
+	curl_setopt( $ch, CURLOPT_URL, $url );
 	curl_setopt( $ch, CURLOPT_POST, 1 );
 	curl_setopt( $ch, CURLOPT_POSTFIELDS, $body );
 	curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
+	curl_setopt( $ch, CURLOPT_CONNECTTIMEOUT, 2 );
+	curl_setopt( $ch, CURLOPT_TIMEOUT, 60 );
+	if ( $json ) curl_setopt( $ch, CURLOPT_HTTPHEADER, array( 'Content-Type: application/json; charset=utf-8' ) );
 	$result = curl_exec( $ch );
-	$http_status = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
 	$errno = curl_errno( $ch );
-	if ( $http_status != 200 ) {
-		asgard_html_error( 'Scan error: code=' . $http_status . '. Please, try again later.' );
+	if ( $errno != 0 ) {
+		asgard_html_error( sprintf( 'POST %s: error=%s code=%d', $url, $errno, curl_error( $ch ) ) );
 	}
+
+	$http_status = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
+	if ( $http_status != 200 ) {
+		asgard_html_error( sprintf( 'POST %s error: code=%d. Please, try again later.', $url, $http_status ) );
+	}
+
 	curl_close( $ch );
-	return json_decode( $result );
+	return json_decode( $result, true );
+}
+
+function asgard_scan_zip( $path ) {
+	return asgard_api_post( ASGARD_API . '/scan_zip', array( 'file' => '@' . $path ) );
 }
 
 
@@ -291,7 +300,7 @@ function asgard_send_hashes( $hashlist ) {
 		) );
 	// send blog url and email for auth
 	$plugin_info = get_plugin_data( __FILE__ );
-	$args = build_query( array(
+	$q = build_query( array(
 			'checksum' => md5( $body ) ,
 			'site_url' => get_site_url() ,
 			'admin_email' => get_option( 'admin_email' ) ,
@@ -299,43 +308,7 @@ function asgard_send_hashes( $hashlist ) {
 			'asgard_checksum' => ASGARD_CHECKSUM,
 			'asgard_version' => $plugin_info['Version'],
 		) );
-	$response = wp_remote_post( ASGARD_API . '/check?' . $args, array(
-			'body' => $body,
-			'headers' => array(
-				'Content-Type' => 'application/json; charset=utf-8',
-			) ,
-		) );
-	if ( is_wp_error( $response ) ) {
-		$error_message = $response->get_error_message();
-		die( "Something went wrong: $error_message" );
-	}
-	if ( $response['response']['code'] != 200 ) {
-		asgard_html_error( 'Send Hashes error: code=' . $response['response']['code'] . '. Please, try again later.' );
-	}
-	$result = json_decode( $response['body'], true );
-	return $result['result'];
-}
 
-
-function asgard_auth_key() {
-	$plugin_info = get_plugin_data( __FILE__ );
-	$body = array(
-		'site_url' => get_site_url() ,
-		'admin_email' => get_option( 'admin_email' ) ,
-		'wp_version' => get_bloginfo( 'version' ) ,
-		'asgard_checksum' => ASGARD_CHECKSUM,
-		'asgard_version' => $plugin_info['Version'],
-	);
-
-	$response = wp_remote_post( ASGARD_API . '/auth', array( 'body' => $body ) );
-	if ( is_wp_error( $response ) ) {
-		$error_message = $response->get_error_message();
-		die( "Something went wrong: $error_message" );
-	}
-
-	if ( $response['response']['code'] != 200 ) {
-		asgard_html_error( 'Auth Error: code=' . $response['response']['code'] );
-	}
-
-	return json_decode( $response['body'], true );
+	$result = asgard_api_post( ASGARD_API . '/check?' . $q, $body, 'json' );
+	return is_array( $result['result'] ) ? $result['result'] : array();
 }
