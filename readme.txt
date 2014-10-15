@@ -7,11 +7,12 @@ Stable tag: 4.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-One click security scan. Fast search the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and links. 
+One click security scan. 
 
 == Description ==
 
-Asgard Security Scanner is a fast and free security tool that helps you detect malware in your WordPress installation. Our "Cloud" scanner helps you identify and remove any backdoors, trojans and hidden frames in themes, plugins and blog code.
+Asgard Security Scanner is a fast and free security tool that helps you detect malware in your WordPress installation. Secure your site and increase search ranking.
+Our "Cloud" scanner helps you identify and remove any backdoors, trojans and hidden frames in themes, plugins and blog code. Cure hacked files with one-click button.
 
 == Installation ==
 
