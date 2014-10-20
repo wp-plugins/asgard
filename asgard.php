@@ -59,9 +59,7 @@ function asgard_remove_malware_callback() {
 			continue;
 		}
 		
-		// append random number prefix
-		$backup_path = dirname($path) . DIRECTORY_SEPARATOR . mt_rand(0, 10000000) . basename($path);
-		if ( rename( $path, $backup_path ) ) {
+		if ( @unlink( $path ) ) {
 			echo '<p class="text-success">' . $path . ' removed</p>';
 		}
 		else {
