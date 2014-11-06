@@ -1,9 +1,9 @@
 === Plugin Name ===
 Contributors: outself
-Tags: antivirus, security, scanner, exploit, trojan, security audit, asgard, virus, malware, file integrity, sukuri, security scan, cure, disaster recovery, phishing, safe browsing, vulnerability, malware removal, website security, hack, hacker, backdoor, protection, secrity, secure, securty
+Tags: antivirus, security, scanner, exploit, trojan, security audit, asgard, virus, malware, file integrity, security scan, cure, disaster recovery, phishing, safe browsing, vulnerability, malware removal, website security, hack, hacker, backdoor, protection, secrity, secure, securty
 Requires at least: 3.2
 Tested up to: 4.0
-Stable tag: 4.3
+Stable tag: 0.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,3 +21,7 @@ Our "Cloud" scanner helps you identify and remove any backdoors, trojans and hid
 3. Type Asgard in the Search box, and click "Search" plugins.
 4. Select Asgard - "Install Now"
 5. Now choose to Activate the plugin.
+
+== Screenshots ==
+
+1. Scan In Action
