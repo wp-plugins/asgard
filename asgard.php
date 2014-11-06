@@ -5,7 +5,7 @@ Plugin URI: https://wordpress.org/plugins/asgard/
 Description: One click enterprise security scan. Fast audit the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and links.
 Author: Yuri Korzhenevsky
 Author URI: https://github.com/outself
-Version: 0.1
+Version: 0.2
 */
 
 /*
