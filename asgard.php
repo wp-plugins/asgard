@@ -323,7 +323,7 @@ jQuery(document).ready(function($) {
         });
 
         $('.remove-malware').live('click', function(){
-		if (!confirm('DANGER! This action completely remove files and backup it with random prefix. Use at own RISK.')) return;
+		if (!confirm('DANGER! This action completely remove files WITHOUT BACKUP. Use at own RISK.')) return;
                 var files = $('.mw-file').map(function(){ return $(this).data('path'); }).get();
                 $.post(ajaxurl, {action: 'asgard_remove_malware', files: files, security: '<?php
 	echo $ajax_nonce; ?>'}, function(response) {
