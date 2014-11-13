@@ -1,11 +1,11 @@
 <?php
 /*
-Plugin Name: Asgard Security - One click security audit
+Plugin Name: Asgard Security Scanner
 Plugin URI: https://wordpress.org/plugins/asgard/
 Description: One click enterprise security scan. Fast audit the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and links.
 Author: Yuri Korzhenevsky
 Author URI: https://github.com/outself
-Version: 0.1
+Version: 0.3
 */
 
 /*
@@ -36,12 +36,58 @@ require_once ABSPATH . 'wp-includes/class-http.php';
 // TODO: while send wp-config, replace password to ****
 define( 'ASGARD__PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASGARD_CHECKSUM', md5( file_get_contents( __FILE__ ) ) );
-define( 'ASGARD_API', 'https://asgardapi.com/wordpress/v1beta' );
+define( 'ASGARD_API', 'https://asgardapi.com/wordpress/v2beta' );
 define( 'ASGARD_EXCLUDE_MASK', '/\/' . basename( WP_CONTENT_DIR ) . '\/(uploads|cache|backup|w3tc)/' );
+define( 'ASGARD_PASSPORT', 'https://asgardapi.appspot.com/' );
 
 add_action( 'wp_ajax_asgard_scan_files', 'asgard_scan_files_callback' );
 add_action( 'wp_ajax_asgard_remove_malware', 'asgard_remove_malware_callback' );
 add_action( 'admin_menu', 'asgard_admin_menu' );
+add_action( 'admin_menu', 'asgard_admin_menu' );
+
+function asgard_ext_scan() {
+	if ( !get_option( 'asgard_authkey' ) ) return;
+	if ( empty( $_GET['asgard_scan'] ) ) return;
+
+	@ob_end_clean();
+	if ( $_GET['asgard_scan'] !== get_option( 'asgard_authkey' ) ) {
+		wp_send_json_error( array( 'error'=>'Invalid auth key' ) );
+	}
+
+	$scanner = new AsgardScanner();
+	$scanner->scan( ABSPATH );
+
+	$resp = array( 'unknown'=>$scanner->unknown, 'malware'=>$scanner->malware );
+	if ( !empty( $scanner->scanres ) ) $resp['scan_result'] = $scanner->scanres;
+	
+	wp_send_json_success( $resp );
+}
+
+asgard_ext_scan();
+
+function asgard_activate_url() {
+	$q = build_query( array(
+			'url' => urlencode( get_site_url() ),
+			'client' => urlencode( 'Wordpress ' . get_bloginfo( 'version' ) ),
+			'return_uri' => urlencode( admin_url( 'admin.php?page=asgard&asgard_authkey={AuthKey}' ) ) )
+	);
+	return ASGARD_PASSPORT . 'activate?' . $q;
+}
+
+function asgard_activate_notice() {
+	if ( is_admin() && !empty( $_GET['asgard_authkey'] ) && is_admin() ) {
+		update_option( 'asgard_authkey', $_GET['asgard_authkey'] );
+	}
+
+	if ( get_option( 'asgard_authkey' ) ) { return; }
+
+?>
+    <div class="updated">
+    <p>Asgard Security. Almost done - <a href="<?php echo asgard_activate_url(); ?>">activate your account</a> and protect your blog from malware.</p>
+    </div>
+    <?php
+}
+add_action( 'admin_notices', 'asgard_activate_notice' );
 
 function asgard_assets() {
 	/* Register our script. */
@@ -58,7 +104,7 @@ function asgard_remove_malware_callback() {
 		if ( !file_exists( $path ) ) {
 			continue;
 		}
-		
+
 		if ( @unlink( $path ) ) {
 			echo '<p class="text-success">' . $path . ' removed</p>';
 		}
@@ -113,47 +159,102 @@ function asgard_zip_files( $files, $basepath ) {
 	return $tmpfile->file;
 }
 
+class AsgardScanner {
+	public $files = array();
+	public $hashlist = array();
+	public $result = array();
+	public $scanres = array();
+
+	public $malware = 0;
+	public $unknown = 0;
+
+	public function scan( $basepath ) {
+		$this->files = array_values( array_filter( list_files( $basepath ), 'asgard_filter_target_file' ) );
+		$this->hashlist = array_values( array_map( 'asgard_content_hash', $this->files ) );
+		$res = asgard_send_hashes( $this->hashlist );
+
+		$toscan = array();
+		foreach ( $res as $index ) {
+			$path = $this->files[abs( $index ) - 1];
+			$verdict = false;
+			if ( $index < 0 ) {
+				$toscan[] = $path;
+				++$this->unknown;
+			}
+			else {
+				$this->result[$path] = 'Common Malware';
+				++$this->malware;
+			}
+		}
+		if ( count( $toscan ) > 0 ) {
+			$zip = asgard_zip_files( $toscan, $basepath );
+			$scanres = asgard_scan_zip( $zip );
+			if ( $scanres && $scanres['match'] ) {
+				foreach ( $scanres['verdict'] as $path => $verdict ) {
+					$this->result[$basepath . $path] = $verdict;
+					++$this->malware;
+				}
+			}
+			$this->scanres = $scanres;
+		}
+
+	}
+}
+
 function asgard_scan_files_callback() {
 	echo '<hr>';
 	$t = microtime( true );
 	$basepath = ABSPATH;
-	$files = list_files( $basepath );
-	$files = array_filter( $files, 'asgard_filter_target_file' );
-	$files = array_values( $files );
-	$hashlist = array_map( 'asgard_content_hash', $files );
-	$hashlist = array_values( $hashlist );
-	$res = asgard_send_hashes( $hashlist );
-	if ( is_wp_error( $res ) ) {
-		die( '<div class="error"><p>' . $res->get_error_message() . '</p></div>' );
+
+	$scanner = new AsgardScanner();
+	$scanner->scan( $basepath );
+
+	$scanned = count( $scanner->files );
+	$url = get_site_url();
+	$blacklist = asgard_blacklist_check( $url );
+
+	if ( !empty( $blacklist ) ) {
+?>
+			<h3>Blacklist Check <?php echo $url; ?></h3>
+<table class="table blacklist-table">
+    <thead>
+    <tr>
+        <th>Provider</th>
+        <th width="45%">Verdict</th>
+    </tr>
+    </thead>
+
+    <tbody id="the-list">
+    <?php
+		foreach ( $blacklist as $bl ): ?>
+		<tr id="akismet"<?php if ( $bl['Verdict'] && $bl['Verdict'] != 'NOT_FOUND' ) { echo ' class="danger"'; } ?>>
+			<td>
+				<img src="<?php echo plugins_url( '/icons/' . esc_attr($bl['Source']) . '.ico', __FILE__ ); ?>" width="16" height="16" alt=""/ class="asgard-blacklist-icon">
+					<strong><?php echo esc_html($bl['Source']); ?></strong>
+			</td>
+			<td class="success">
+			<?php
+			if ( is_array( $bl['Verdict'] ) ) { echo implode( '<br>', $bl['Verdict'] ); } else
+				echo ( $bl['Verdict'] == 'NOT_FOUND' || !$bl['Verdict'] ) ? 'Clean' : esc_html($bl['Verdict']); ?>
+			</td>
+    		</tr>
+		<?php
+		endforeach; ?>
+    </tbody>
+</table>
+
+<p></p>
+<h3>Malware Deep Scan</h3>
+<?php
 	}
-	$result = array();
-	$toscan = array();
-	foreach ( $res as $index ) {
-		$path = $files[abs( $index ) - 1];
-		$verdict = false;
-		if ( $index < 0 ) {
-			$toscan[] = $path;
-		}
-		else {
-			$result[$path] = 'Common Malware';
-		}
-	}
-	if ( count( $toscan ) > 0 ) {
-		$zip = asgard_zip_files( $toscan, $basepath );
-		$scanres = asgard_scan_zip( $zip );
-		if ( $scanres && $scanres['match'] ) {
-			foreach ( $scanres['verdict'] as $path => $verdict ) {
-				$result[$basepath . $path] = $verdict;
-			}
-		}
-	}
-	if ( !count( $result ) ) {
-		echo '<p class="alert alert-success">Success! No known malware found.</p>';
-		echo '<p class="text-muted pull-right">Scan time: ' . round( microtime( true ) - $t, 3 ) . ' sec</p>';
+	echo '<p>' . sprintf( _n( '%d file scanned', '%d files scanned', $scanned, 'asgard' ), $scanned ) . ' in ' . sprintf( '%.3f', microtime( true ) - $t ). ' sec.</p>';
+
+	if ( !count( $scanner->result ) ) {
+		echo '<p class="alert alert-success">No known malware in files found.</p>';
 		die;
 	}
+
 ?>
-<h3>Dangerous Files</h3>
 
 <table class="table table-hover">
     <thead>
@@ -165,14 +266,11 @@ function asgard_scan_files_callback() {
 
     <tbody id="the-list">
     <?php
-	foreach ( $result as $path => $verdict ): ?>
+	foreach ( $scanner->result as $path => $verdict ): ?>
     <tr id="akismet" class="danger">
-	<td><strong><?php
-		echo $verdict; ?></strong></td>
-        <td class="column-description desc mw-file" data-path="<?php
-	echo base64_encode( $path ); ?>">
-		<?php
-	echo $path; ?>
+	<td><strong><?php echo $verdict; ?></strong></td>
+        <td class="column-description desc mw-file" data-path="<?php echo base64_encode( $path ); ?>">
+		<?php echo $path; ?>
         </td>
     </tr>
 	<?php
@@ -195,10 +293,11 @@ function asgard_admin_menu() {
 
 
 function asgard_ep() {
+	if ( !get_option( 'asgard_authkey' ) ) return;
 	asgard_assets();
 	$ajax_nonce = wp_create_nonce( 'asgard-remove-malware' );
 ?>
-	<div class="wrap">
+	<div class="wrap asgard">
 	<h2>Asgard Security Scanner</h2>
 	<button class="btn btn-large btn-primary scanit">
 		<span>Scan for Malware</span>
@@ -227,7 +326,7 @@ jQuery(document).ready(function($) {
         });
 
         $('.remove-malware').live('click', function(){
-		if (!confirm('DANGER! This action completely remove files and backup it with random prefix. Use at own RISK.')) return;
+		if (!confirm('DANGER! This action completely remove files WITHOUT BACKUP. Use at own RISK.')) return;
                 var files = $('.mw-file').map(function(){ return $(this).data('path'); }).get();
                 $.post(ajaxurl, {action: 'asgard_remove_malware', files: files, security: '<?php
 	echo $ajax_nonce; ?>'}, function(response) {
@@ -274,7 +373,15 @@ function asgard_api_post( $url, $body, $json=false ) {
 	curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
 	curl_setopt( $ch, CURLOPT_CONNECTTIMEOUT, 2 );
 	curl_setopt( $ch, CURLOPT_TIMEOUT, 60 );
-	if ( $json ) curl_setopt( $ch, CURLOPT_HTTPHEADER, array( 'Content-Type: application/json; charset=utf-8' ) );
+	$authkey = get_option( 'asgard_authkey' );
+	if ( !$authkey ) {
+		asgard_html_error( 'asgard_authkey option not found. Please, activate access.' );
+	}
+	$headers = array( 'X-AuthKey: ' . $authkey );
+
+	if ( $json ) $headers[]='Content-Type: application/json; charset=utf-8' ;
+	curl_setopt( $ch, CURLOPT_HTTPHEADER, $headers );
+
 	$result = curl_exec( $ch );
 	$errno = curl_errno( $ch );
 	if ( $errno != 0 ) {
@@ -294,13 +401,19 @@ function asgard_scan_zip( $path ) {
 	return asgard_api_post( ASGARD_API . '/scan_zip', array( 'file' => '@' . $path ) );
 }
 
+function asgard_blacklist_check( $url ) {
+	$resp = wp_remote_get( 'https://asgardapi.com/safeurl/v2beta/lookup?url=' . urlencode( $url ), array() );
+	$result = json_decode( $resp['body'], true );
+	return is_array( $result['results'] ) ? $result['results'] : array();
+}
 
 function asgard_send_hashes( $hashlist ) {
 	$body = json_encode( array(
 			'hash' => $hashlist
 		) );
 	// send blog url and email for auth
-	$plugin_info = get_plugin_data( __FILE__ );
+	// TODO: hack for ext scan
+	$plugin_info = is_admin() ? get_plugin_data( __FILE__ ) : array( 'Version'=>'' );
 	$q = build_query( array(
 			'checksum' => md5( $body ) ,
 			'site_url' => get_site_url() ,
