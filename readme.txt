@@ -34,6 +34,7 @@ Serious Malware Scanner:
 
 No dumb line-by-line security scan. In common cases, malware injection heavy encoded and encrypted.
 Therefore, we scan files in two steps:
+
 * Send files hashes and detect popular "security-breach" web-shells: c99, rst, r57 and many more blackhat tools.
 * Send unknown files and our CloudAPI detect hacked files and encrypted backdoors.
 
