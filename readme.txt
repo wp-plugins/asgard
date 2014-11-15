@@ -38,6 +38,7 @@ Therefore, we scan files in two steps:
 * Send file hashes and detect popular web-shells: c99, rst, r57 and many more blackhat tools.
 * Send unknown files and our CloudAPI detects hacked files and encrypted backdoors.
 
+We use Machine Learning algorithms for detect suspicious and malicious code. Use at your own risk ;)
 
 == Installation ==
 
