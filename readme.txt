@@ -7,7 +7,7 @@ License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Tags: antivirus, security, exploit, security audit, asgard, virus, malware, file integrity, security scan, phishing, safe browsing, vulnerability, website security, hack, hacker, backdoor, protection, secrity, secure, securty
 
-One click security scan. Fast security audit the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and links.
+One click security scan. Fast security audit the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and malicious links.
 
 == Description ==
 
@@ -24,7 +24,7 @@ Key Security Features:
 * Reporting of security overview after WordPress blog is scanned
 * Forbid common exploits and attack patterns
 
-Blacklist Checking:
+Blacklist Check:
 
 * Google/Yandex SafeBrowsing malware and phishing check
 * Spamhaus Domain Blacklist (DBL) check
@@ -32,12 +32,13 @@ Blacklist Checking:
 
 Serious Malware Scanner:
 
-No dumb line-by-line security scan. In common cases, malware injection heavy encoded and encrypted.
+No stupid line-by-line security scan. In common cases, malware injection strong encoded and encrypted.
 Therefore, we scan files in two steps:
 
-* Send files hashes and detect popular "security-breach" web-shells: c99, rst, r57 and many more blackhat tools.
-* Send unknown files and our CloudAPI detect hacked files and encrypted backdoors.
+* Send file hashes and detect popular web-shells: c99, rst, r57 and many more blackhat tools.
+* Send unknown files and our CloudAPI detects hacked files and encrypted backdoors.
 
+We use Machine Learning algorithms for detect suspicious and malicious code. Use at your own risk ;)
 
 == Installation ==
 
