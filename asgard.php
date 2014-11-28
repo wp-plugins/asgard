@@ -5,7 +5,7 @@ Plugin URI: https://wordpress.org/plugins/asgard/
 Description: One click enterprise security scan. Fast audit the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and links.
 Author: Yuri Korzhenevsky
 Author URI: https://github.com/outself
-Version: 0.3
+Version: 0.4
 */
 
 /*
@@ -59,7 +59,13 @@ function asgard_ext_scan() {
 
 	$resp = array( 'unknown'=>$scanner->unknown, 'malware'=>$scanner->malware );
 	if ( !empty( $scanner->scanres ) ) $resp['scan_result'] = $scanner->scanres;
-	
+	if (!empty($_GET['plugins_info'])) {
+		if ( ! function_exists( 'get_plugins' ) ) {
+				require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+		$resp['plugins'] = get_plugins();
+	}
+
 	wp_send_json_success( $resp );
 }
 
@@ -226,10 +232,12 @@ function asgard_scan_files_callback() {
 
     <tbody id="the-list">
     <?php
-		foreach ( $blacklist as $bl ): ?>
+		foreach ( $blacklist as $bl ):
+			$icon_url = plugins_url( '/icons/' . esc_attr(preg_replace('/[^\w]/i', '_', strtolower($bl['Source']))) . '.ico', __FILE__ );
+		?>
 		<tr id="akismet"<?php if ( $bl['Verdict'] && $bl['Verdict'] != 'NOT_FOUND' ) { echo ' class="danger"'; } ?>>
 			<td>
-				<img src="<?php echo plugins_url( '/icons/' . esc_attr($bl['Source']) . '.ico', __FILE__ ); ?>" width="16" height="16" alt=""/ class="asgard-blacklist-icon">
+				<img src="<?php echo $icon_url; ?>" width="16" height="16" alt=""/ class="asgard-blacklist-icon">
 					<strong><?php echo esc_html($bl['Source']); ?></strong>
 			</td>
 			<td class="success">
