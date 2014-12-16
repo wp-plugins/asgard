@@ -5,7 +5,7 @@ Plugin URI: https://wordpress.org/plugins/asgard/
 Description: One click enterprise security scan. Fast audit the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and links.
 Author: Yuri Korzhenevsky
 Author URI: https://github.com/outself
-Version: 0.4
+Version: 0.5
 */
 
 /*
@@ -312,6 +312,8 @@ function asgard_ep() {
 	</button>
 	<img src="<?php echo plugins_url( '/loading.gif', __FILE__ ); ?>" width="16" height="16" class="asgard-scan-progress" />
 
+	<br class="clear">
+	<p class="text-muted">Please, give us your feedback: <a href="https://www.hipchat.com/g8VLm5ka8" target="_blank">our HipChat</a></p>
 	<div class="scan-result"></div>
 	</div>
 
