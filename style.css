@@ -1,13 +1,13 @@
-.scanit {
+.asgard .scanit {
 	float: left;
 }
 
-.scan-result {
+.asgard .scan-result {
 	clear: both;
 	margin-top: 4em;
 }
 
-.scan-result .alert {
+.asgard .scan-result .alert {
 	display: inline-block;
 }
 
@@ -15,4 +15,18 @@
 	display: none;
 	padding-top: 11px;
 	margin-left: 5px;
+}
+
+.asgard-blacklist-icon {
+	margin-right: 4px;
+	position: relative;
+	top: 3px;
+}
+
+.asgard .blacklist-table {
+	width: 40% !important;
+}
+
+.asgard .text-right {
+	text-align: right;
 }
