@@ -30,3 +30,13 @@
 .asgard .text-right {
 	text-align: right;
 }
+
+.asgard .unlock {
+	text-decoration: none;
+	float: right;
+}
+
+.asgard .unlock-status {
+	font-size: 13px;
+	float: right;
+}

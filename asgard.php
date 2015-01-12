@@ -5,7 +5,7 @@ Plugin URI: https://wordpress.org/plugins/asgard/
 Description: One click enterprise security scan. Fast audit the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and links.
 Author: Yuri Korzhenevsky
 Author URI: https://github.com/outself
-Version: 0.5
+Version: 0.6
 */
 
 /*
@@ -46,11 +46,11 @@ add_action( 'admin_menu', 'asgard_admin_menu' );
 add_action( 'admin_menu', 'asgard_admin_menu' );
 
 function asgard_ext_scan() {
-	if ( !get_option( 'asgard_authkey' ) ) return;
+	if ( !asgard_authkey() ) return;
 	if ( empty( $_GET['asgard_scan'] ) ) return;
 
 	@ob_end_clean();
-	if ( $_GET['asgard_scan'] !== get_option( 'asgard_authkey' ) ) {
+	if ( $_GET['asgard_scan'] !== asgard_authkey() ) {
 		wp_send_json_error( array( 'error'=>'Invalid auth key' ) );
 	}
 
@@ -59,9 +59,9 @@ function asgard_ext_scan() {
 
 	$resp = array( 'unknown'=>$scanner->unknown, 'malware'=>$scanner->malware );
 	if ( !empty( $scanner->scanres ) ) $resp['scan_result'] = $scanner->scanres;
-	if (!empty($_GET['plugins_info'])) {
+	if ( !empty( $_GET['plugins_info'] ) ) {
 		if ( ! function_exists( 'get_plugins' ) ) {
-				require_once ABSPATH . 'wp-admin/includes/plugin.php';
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
 		}
 		$resp['plugins'] = get_plugins();
 	}
@@ -71,21 +71,80 @@ function asgard_ext_scan() {
 
 asgard_ext_scan();
 
+function asgard_authkey( $authkey=null ) {
+	if ( $authkey !== null ) {
+		update_option( 'asgard_authkey', $authkey );
+	}
+	return get_option( 'asgard_authkey' );
+}
+
+function asgard_get_account( $refresh=false ) {
+	if (  !( $account = get_transient( 'asgard_account' ) ) || $refresh ) {
+		$plugin_info = is_admin() ? get_plugin_data( __FILE__ ) : array( 'Version'=>'-' );
+		$params = array(
+			'auth_key' => asgard_authkey(),
+			'site_url' => site_url( '/' ) ,
+			'admin_email' => get_option( 'admin_email' ) ,
+			'client' => 'Wordpress ' . get_bloginfo( 'version' ) ,
+			'asgard_checksum' => ASGARD_CHECKSUM,
+			'asgard_version' => $plugin_info['Version'],
+		);
+		$resp = wp_remote_post( 'http://pro.asgardapi.appspot.com/get_account', array( 'body'=>$params, 'timeout'=>5 ) );
+		$account_data = wp_remote_retrieve_body( $resp );
+		$account = json_decode( $account_data, true );
+		if ( !is_array( $account ) ) wp_die( 'unable to fetch asgard account.<br/><pre>'.print_r( $params, 1 ).'</pre>' );
+		// 1 day cache
+		set_transient( 'asgard_account', $account, DAY_IN_SECONDS );
+		// upgrade auth_key
+		if ( !empty( $account['auth_key'] ) && $account['auth_key'] !== asgard_authkey() ) {
+			asgard_authkey( $account['auth_key'] );
+		}
+	}
+	return $account;
+}
+
 function asgard_activate_url() {
 	$q = build_query( array(
-			'url' => urlencode( get_site_url() ),
+			'url' => urlencode( site_url( '/' ) ),
 			'client' => urlencode( 'Wordpress ' . get_bloginfo( 'version' ) ),
 			'return_uri' => urlencode( admin_url( 'admin.php?page=asgard&asgard_authkey={AuthKey}' ) ) )
 	);
 	return ASGARD_PASSPORT . 'activate?' . $q;
 }
 
-function asgard_activate_notice() {
-	if ( is_admin() && !empty( $_GET['asgard_authkey'] ) && is_admin() ) {
-		update_option( 'asgard_authkey', $_GET['asgard_authkey'] );
+function asgard_unlock_status() {
+	$till = get_option( 'asgard_unlock_till' );
+	if ( !$till ) return false;
+	if ( $till <= time() ) return 'renew';
+	return true;
+}
+
+function asgard_unlock_notice() {
+	if ( empty( $_GET['asgard_unlock_status'] ) ) {
+		return;
 	}
 
-	if ( get_option( 'asgard_authkey' ) ) { return; }
+	$account = asgard_get_account( 'refresh' );
+	if ( $_GET['asgard_unlock_status'] == 'success' ) {
+?>
+	<div class="updated">
+    		<p>Success! Your full account active until <strong><?php echo date_i18n( get_option( 'date_format' ), $account['payment_until'] ); ?></strong>. </p>
+	</div>
+<?php } else { ?>
+	<div class="error">
+	<p>Brr! <?php echo esc_html( $_GET['asgard_unlock_status'] ); ?>. </p>
+	</div>
+<?php
+	}
+}
+
+function asgard_activate_notice() {
+	if ( !empty( $_GET['asgard_authkey'] ) && is_admin() ) {
+		delete_transient( 'asgard_account' );
+		asgard_authkey( $_GET['asgard_authkey'] );
+	}
+
+	if ( asgard_authkey() ) { return; }
 
 ?>
     <div class="updated">
@@ -94,6 +153,7 @@ function asgard_activate_notice() {
     <?php
 }
 add_action( 'admin_notices', 'asgard_activate_notice' );
+add_action( 'admin_notices', 'asgard_unlock_notice' );
 
 function asgard_assets() {
 	/* Register our script. */
@@ -216,7 +276,7 @@ function asgard_scan_files_callback() {
 	$scanner->scan( $basepath );
 
 	$scanned = count( $scanner->files );
-	$url = get_site_url();
+	$url = site_url( '/' );
 	$blacklist = asgard_blacklist_check( $url );
 
 	if ( !empty( $blacklist ) ) {
@@ -233,17 +293,17 @@ function asgard_scan_files_callback() {
     <tbody id="the-list">
     <?php
 		foreach ( $blacklist as $bl ):
-			$icon_url = plugins_url( '/icons/' . esc_attr(preg_replace('/[^\w]/i', '_', strtolower($bl['Source']))) . '.ico', __FILE__ );
-		?>
+			$icon_url = plugins_url( '/icons/' . esc_attr( preg_replace( '/[^\w]/i', '_', strtolower( $bl['Source'] ) ) ) . '.ico', __FILE__ );
+?>
 		<tr id="akismet"<?php if ( $bl['Verdict'] && $bl['Verdict'] != 'NOT_FOUND' ) { echo ' class="danger"'; } ?>>
 			<td>
 				<img src="<?php echo $icon_url; ?>" width="16" height="16" alt=""/ class="asgard-blacklist-icon">
-					<strong><?php echo esc_html($bl['Source']); ?></strong>
+					<strong><?php echo esc_html( $bl['Source'] ); ?></strong>
 			</td>
 			<td class="success">
 			<?php
-			if ( is_array( $bl['Verdict'] ) ) { echo implode( '<br>', $bl['Verdict'] ); } else
-				echo ( $bl['Verdict'] == 'NOT_FOUND' || !$bl['Verdict'] ) ? 'Clean' : esc_html($bl['Verdict']); ?>
+		if ( is_array( $bl['Verdict'] ) ) { echo implode( '<br>', $bl['Verdict'] ); } else
+			echo ( $bl['Verdict'] == 'NOT_FOUND' || !$bl['Verdict'] ) ? 'Clean' : esc_html( $bl['Verdict'] ); ?>
 			</td>
     		</tr>
 		<?php
@@ -299,21 +359,41 @@ function asgard_admin_menu() {
 	add_menu_page( 'Asgard Security', 'ASGARD', 'manage_options', 'asgard', 'asgard_ep', plugins_url( '/icon_small.png', __FILE__ ) );
 }
 
+function asgard_unlock_url( $action='new' ) {
+	$siteurl = site_url( '/' );
+	$q = build_query( array(
+			'action' => $action,
+			'site_url' => urlencode( $siteurl ),
+			'client' => urlencode( 'Wordpress ' . get_bloginfo( 'version' ) ),
+			'return_uri' => urlencode( admin_url( 'admin.php?page=asgard' ) ) )
+	);
+	return 'http://pro.asgardapi.appspot.com/unlock?' . $q;
+}
 
 function asgard_ep() {
-	if ( !get_option( 'asgard_authkey' ) ) return;
+	if ( !asgard_authkey() ) return;
 	asgard_assets();
 	$ajax_nonce = wp_create_nonce( 'asgard-remove-malware' );
 ?>
 	<div class="wrap asgard">
 	<h2>Asgard Security Scanner</h2>
-	<button class="btn btn-large btn-primary scanit">
-		<span>Scan for Malware</span>
-	</button>
-	<img src="<?php echo plugins_url( '/loading.gif', __FILE__ ); ?>" width="16" height="16" class="asgard-scan-progress" />
+	<button class="btn btn-large btn-primary scanit"><span>Scan for Malware</span></button>
+<?php
+	$account = asgard_get_account();
 
+	if ( !$account['scanning'] ) {
+?>
+	<?php if ( empty( $account['payment_until'] ) ) { ?>
+	<a class="btn btn-large btn-success unlock" href="<?php echo asgard_unlock_url(); ?>" target="_blank"><span>Unlock continuous scanning&hellip;</span></a>
+	<?php } else { ?>
+	<a class="btn btn-large btn-success unlock" href="<?php echo asgard_unlock_url( 'renew' ); ?>" target="_blank"><span>Renew continuous scanning&hellip;</span></a>
+	<?php } ?>
+<?php } else { ?>
+<span class="unlock-status label label-success">Every day scan until: <?php echo date_i18n( get_option( 'date_format' ), $account['payment_until'] ); ?> </span>
+<?php } ?>
+	<img src="<?php echo plugins_url( '/loading.gif', __FILE__ ); ?>" width="16" height="16" class="asgard-scan-progress" />
 	<br class="clear">
-	<p class="text-muted">Please, give us your feedback: <a href="https://www.hipchat.com/g8VLm5ka8" target="_blank">our HipChat</a></p>
+	<p class="text-muted">Please, give us your feedback to <a href="https://www.hipchat.com/g8VLm5ka8" target="_blank">team HipChat</a></p>
 	<div class="scan-result"></div>
 	</div>
 
@@ -383,7 +463,11 @@ function asgard_api_post( $url, $body, $json=false ) {
 	curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
 	curl_setopt( $ch, CURLOPT_CONNECTTIMEOUT, 2 );
 	curl_setopt( $ch, CURLOPT_TIMEOUT, 60 );
-	$authkey = get_option( 'asgard_authkey' );
+	curl_setopt( $ch, CURLOPT_VERBOSE, true );
+	$verbose = fopen( 'php://temp', 'rw+' );
+	curl_setopt( $ch, CURLOPT_STDERR, $verbose );
+
+	$authkey = asgard_authkey();
 	if ( !$authkey ) {
 		asgard_html_error( 'asgard_authkey option not found. Please, activate access.' );
 	}
@@ -394,12 +478,17 @@ function asgard_api_post( $url, $body, $json=false ) {
 
 	$result = curl_exec( $ch );
 	$errno = curl_errno( $ch );
+
+	rewind( $verbose );
+	if ( function_exists( 'stream_get_contents' ) ) { $verbose = stream_get_contents( $verbose ); } else { $verbose = '(no verbose info: stream_get_contents function not disables)'; }
 	if ( $errno != 0 ) {
+		echo '<p>'.nl2br( $verbose ).'</p>';
 		asgard_html_error( sprintf( 'POST %s: error=%s code=%d', $url, $errno, curl_error( $ch ) ) );
 	}
 
 	$http_status = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
 	if ( $http_status != 200 ) {
+		echo '<p>'.nl2br( $verbose ).'</p>';
 		asgard_html_error( sprintf( 'POST %s error: code=%d. Please, try again later.', $url, $http_status ) );
 	}
 
@@ -425,8 +514,9 @@ function asgard_send_hashes( $hashlist ) {
 	// TODO: hack for ext scan
 	$plugin_info = is_admin() ? get_plugin_data( __FILE__ ) : array( 'Version'=>'' );
 	$q = build_query( array(
+			'locale' => get_locale(),
 			'checksum' => md5( $body ) ,
-			'site_url' => get_site_url() ,
+			'site_url' => site_url( '/' ) ,
 			'admin_email' => get_option( 'admin_email' ) ,
 			'wp_version' => get_bloginfo( 'version' ) ,
 			'asgard_checksum' => ASGARD_CHECKSUM,
