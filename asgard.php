@@ -5,7 +5,7 @@ Plugin URI: https://wordpress.org/plugins/asgard/
 Description: One click enterprise security scan. Fast audit the files of your WordPress install for hidden backdoors, code-eval, encrypted iframes and links.
 Author: Yuri Korzhenevsky
 Author URI: https://github.com/outself
-Version: 0.6
+Version: 0.7
 */
 
 /*
@@ -378,19 +378,7 @@ function asgard_ep() {
 	<div class="wrap asgard">
 	<h2>Asgard Security Scanner</h2>
 	<button class="btn btn-large btn-primary scanit"><span>Scan for Malware</span></button>
-<?php
-	$account = asgard_get_account();
-
-	if ( !$account['scanning'] ) {
-?>
-	<?php if ( empty( $account['payment_until'] ) ) { ?>
-	<a class="btn btn-large btn-success unlock" href="<?php echo asgard_unlock_url(); ?>" target="_blank"><span>Unlock continuous scanning&hellip;</span></a>
-	<?php } else { ?>
-	<a class="btn btn-large btn-success unlock" href="<?php echo asgard_unlock_url( 'renew' ); ?>" target="_blank"><span>Renew continuous scanning&hellip;</span></a>
-	<?php } ?>
-<?php } else { ?>
-<span class="unlock-status label label-success">Every day scan until: <?php echo date_i18n( get_option( 'date_format' ), $account['payment_until'] ); ?> </span>
-<?php } ?>
+	<?php $account = asgard_get_account(); ?>
 	<img src="<?php echo plugins_url( '/loading.gif', __FILE__ ); ?>" width="16" height="16" class="asgard-scan-progress" />
 	<br class="clear">
 	<p class="text-muted">Please, give us your feedback to <a href="https://www.hipchat.com/g8VLm5ka8" target="_blank">team HipChat</a></p>
